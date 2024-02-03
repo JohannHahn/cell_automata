@@ -5,29 +5,32 @@
 
 typedef uint32_t u32;
 
-Image img = GenImageColor(800, 600, BLACK);
-Texture txt;
+Image* img;
 
 void rules(const u32* input, u32* output, size_t size) {
-    std::cout << "in rules\n";
-    std::cout << "img.data pointer = " << img.data << ", output = " << output << "\n";
-    for (int i = 0; i < size; ++i) {
+    for (size_t i = 0; i < size; ++i) {
 	output[i] = GetRandomValue(0x000000FF, 0xFFFFFFFF);	
     }
 }
 int main() {
-    Cell_Automat<u32> cell_automat((u32*)img.data, 800*600, rules);
+    std::cout << "hi\n";
+
     InitWindow(800, 600, "hi");
-    //SetTraceLogLevel(LOG_ERROR);
+
+    Image h = GenImageColor(800, 600, BLACK); 
+    img = &h;
+    Texture txt = LoadTextureFromImage(*img);
+
+    Cell_Automat<u32> cell_automat((u32*)img->data, 800*600, rules);
+
     while (!WindowShouldClose()) {
-	UnloadTexture(txt);	
-	txt = LoadTextureFromImage(img);
 
 	BeginDrawing();
 	DrawTexture(txt, 0, 0, WHITE);
 	EndDrawing();
 
 	cell_automat.apply_rules();
+	UpdateTexture(txt, img->data);
     }
     return 0;
 }
