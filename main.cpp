@@ -30,7 +30,7 @@ int count_neighbours(int x, int y, const u32* pixels) {
     }
     return count;
 }
-void rules(const u32* input, u32* output, size_t size) {
+void rules(const u32* input, u32* output, size_t size, u32* neighbours, size_t neighbours_size){
     for (int y = 0; y < cells_height; ++y) {
 	for (int x = 0; x < cells_width; ++x) {
 	    int index = x + y * cells_width;
