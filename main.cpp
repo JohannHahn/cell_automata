@@ -17,35 +17,29 @@ float window_height = 600;
 float min_dim = std::min(window_width, window_height);
 Rectangle view_area = {0, 0, min_dim, min_dim};
 
+void rules(Cell_Automat<u32>& automat) {
+    for (int y = 0; y < automat.height; ++y) {
+	for (int x = 0; x < automat.width; ++x) {
+	    int index = x + y * automat.width;
+	    u32 input_val = automat.cells[index];
+	    assert(input_val == automat.one || input_val == automat.zero && "wrong color");
 
-int count_neighbours(int x, int y, const u32* pixels) {
-    int count = 0;
-    for (int y_n = -1; y_n <= 1; ++y_n) {
-	for (int x_n = -1; x_n <= 1; ++x_n) {
-	    int index = x + x_n + (y + y_n) * cells_width;
-	    if(index >= 0 && index < cells_width * cells_height) {
-		if (pixels[index] == alive_col) count++; 
+	    int neighbours = 0; 
+	    for (int i = 0; i < automat.num_neighbors; ++i) {
+		int new_index = index + automat.neighbour_mask[i];
+		if (new_index >= 0 && new_index < automat.size 
+		    && automat.cells[new_index] != automat.zero) {
+		    neighbours++;
+		}
 	    }
-	}
-    }
-    return count;
-}
-void rules(const u32* input, u32* output, size_t size, u32* neighbours, size_t neighbours_size){
-    for (int y = 0; y < cells_height; ++y) {
-	for (int x = 0; x < cells_width; ++x) {
-	    int index = x + y * cells_width;
-	    u32 input_val = input[index];
-	    assert(input_val == alive_col || input_val == dead_col && "wrong color");
 
-	    int neighbours = count_neighbours(x, y, input); 
-	    bool alive = (input_val == alive_col);
-
-	    if(alive && neighbours == 3) output[index] = alive_col;
-	    else if(alive && neighbours == 2) output[index] = alive_col;
-	    else if(alive && neighbours < 2) output[index] = dead_col;
-	    else if(alive && neighbours > 3) output[index] = dead_col;
-	    else if(!alive && neighbours == 3) output[index] = alive_col;
-	    else if(!alive && neighbours != 3) output[index] = dead_col;
+	    bool alive = (input_val == automat.one);
+	    if(alive && neighbours == 3) automat.empty[index] = automat.one;
+	    else if(alive && neighbours == 2) automat.empty[index] = automat.one;
+	    else if(alive && neighbours < 2) automat.empty[index] = automat.zero;
+	    else if(alive && neighbours > 3) automat.empty[index] = automat.zero;
+	    else if(!alive && neighbours == 3) automat.empty[index] = automat.one;
+	    else if(!alive && neighbours != 3) automat.empty[index] = automat.zero;
 	    else {
 		assert(0 && "unreachable");
 	    }
@@ -63,7 +57,7 @@ void resize() {
 int main() {
     InitWindow(window_width, window_height, "hi");
     SetWindowState(FLAG_WINDOW_RESIZABLE);
-   // SetTargetFPS(10);
+    SetTargetFPS(5);
 
     Image h = GenImageColor(cells_width, cells_height, COLOR_FROM_U32(alive_col)); 
     u32* pixels = (u32*)h.data;
@@ -75,7 +69,8 @@ int main() {
     SetPixelColor(&pixels[101], COLOR_FROM_U32(dead_col), h.format);
     SetPixelColor(&pixels[(int)window_width + 101], COLOR_FROM_U32(dead_col), h.format);
     Texture txt = LoadTextureFromImage(h);
-    Cell_Automat<u32> cell_automat(cells_width*cells_height, rules, dead_col, (u32*)h.data);
+    Cell_Automat<u32> cell_automat(TWO_DIM, cells_width, cells_height, 
+				   dead_col, alive_col, (u32*)h.data, rules);
     UnloadImage(h);
 
     while (!WindowShouldClose()) {
