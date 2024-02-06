@@ -84,7 +84,7 @@ void resize() {
 }
 
 void controls() {
-    if (autoplay || IsKeyReleased(next_frame_key) || IsKeyDown(next_frame_key)) {
+    if (autoplay || IsKeyReleased(next_frame_key)) {
 	selected_automat->apply_rules(); 
     }
     if(IsKeyReleased(autoplay_key)) {
