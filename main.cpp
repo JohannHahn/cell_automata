@@ -9,8 +9,8 @@ typedef uint32_t u32;
 
 u32 alive_col = 0xFFFF1111;
 u32 dead_col  = 0xFF181818;
-size_t cells_width = 50;
-size_t cells_height = 50;
+size_t cells_width = 500;
+size_t cells_height = 500;
 float window_width = 900;
 float window_height = 600;
 float min_dim = std::min(window_width, window_height);
@@ -23,34 +23,22 @@ KeyboardKey next_frame_key = KEY_RIGHT;
 
 void one_dim_rules(Cell_Automat<u32>& automat) {
     if (automat.generation < automat.height) {
-	int ruleset[8] = {0, 1, 1, 0, 1, 1, 1, 0};
+	int ruleset[8] = {0, 0, 0, 1, 1, 1, 1, 0};
 	int y = automat.generation;
 	for (int x = 0; x < automat.width; ++x) {
 	    //std::cout << "index = " << index << "\n";
 	    u32 rule_index = 0;
 	    u32 index = INDEX(x, y, automat.width);
-	    std::string bits;
-	    bits += "ruleset bits = ";
 	    for (int n_i = 0; n_i < 3; ++n_i) {
 		int new_index = INDEX(x, y, automat.width) + automat.neighbour_mask[n_i];
 		if (new_index < 0) new_index += automat.width;
 		else if (new_index >= automat.size) new_index -= automat.width;
 		if (automat.cells[new_index] == automat.one) {
-		    bits += "1";
 		    rule_index |= (u32)(1) << (2 - n_i);
 		}
-		else bits += "0";
 	    }
-	    //rule_index = 7 - rule_index;
+	    rule_index = 7 - rule_index;
 	    u32 new_value = ruleset[rule_index] ? automat.one : automat.zero;
-	    if (new_value == automat.one) {
-		std::cout << "\n---------- report begin ----------------\n";
-		std::cout << "x = " << x << ", y = " << y << "\n";
-		std::cout << "index = " << index << "\n";
-		std::cout << "rule_index = " << rule_index << "\n";
-		std::cout << bits << "\n";
-		std::cout << "---------- report end----------------\n";
-	    }
 	    assert(rule_index < 8);
 	    assert(rule_index >= 0);
 	    automat.cells[INDEX(x, y + 1, automat.width)] = new_value;

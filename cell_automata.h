@@ -7,7 +7,7 @@ enum Automata_Type {
     ONE_DIM, TWO_DIM, AUTOMATA_TYPE_MAX
 };
 
-#define INDEX(x, y, width) x + y * width
+#define INDEX(x, y, width) x + ((y) * width)
 
 template<typename T> class Cell_Automat {
 public:
@@ -55,8 +55,11 @@ public:
 	rules(*this);
 	if(type != ONE_DIM) {
 	    switch_buffers();
+	    std::cout << "switched buffers\n";
 	}
-	if(generation < height - 1) generation++;
+	if(ONE_DIM && generation < height - 1) { 
+	    generation++;
+	}
     }
     static void set_buf(T* buf, size_t size, T val) {
 	for(int i = 0; i < size; ++i) {
