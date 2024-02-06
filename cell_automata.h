@@ -1,5 +1,6 @@
 #pragma once
 #include <iostream>
+#include <cassert>
 
 
 enum Automata_Type {
@@ -7,7 +8,6 @@ enum Automata_Type {
 };
 
 #define INDEX(x, y, width) x + y * width
-
 
 template<typename T> class Cell_Automat {
 public:
@@ -27,16 +27,7 @@ public:
 	}
 	set_buf(empty, size, zero);
 
-	num_neighbors = neighbourhood_sizes[type];
-	neighbour_mask = new int[num_neighbors];
-	int index = 0;
-	for (int y = -1; y <= 1; ++y) {
-	    for (int x = -1; x <= 1; ++x) {
-		int neighbor = INDEX(x, y, width);
-		neighbour_mask[index++] = neighbor;
-	    }
-	}
-
+	setup_neighborhood();
     };
     ~Cell_Automat() {
 	delete[] cells;
@@ -44,11 +35,12 @@ public:
 	delete[] neighbour_mask;
     };
 
-    static constexpr int neighbourhood_sizes[AUTOMATA_TYPE_MAX] = {2, 9};
+    static constexpr int neighbourhood_sizes[AUTOMATA_TYPE_MAX] = {3, 9};
     size_t size;
     size_t width;
     size_t height;
     size_t num_neighbors; 
+    size_t generation = 0;
     int* neighbour_mask;
     T* empty;
     T* cells;
@@ -61,7 +53,10 @@ public:
     }
     void apply_rules() {
 	rules(*this);
-	switch_buffers();
+	if(type != ONE_DIM) {
+	    switch_buffers();
+	}
+	if(generation < height - 1) generation++;
     }
     static void set_buf(T* buf, size_t size, T val) {
 	for(int i = 0; i < size; ++i) {
@@ -74,5 +69,32 @@ private:
 	T* h = cells;
 	cells = empty;
 	empty = h;
+    }
+    void setup_neighborhood() {
+	num_neighbors = neighbourhood_sizes[type];
+	neighbour_mask = new int[num_neighbors];
+	std::cout << "num neighbours = " << num_neighbors << "\n";
+	int index = 0;
+	switch(type) {
+	    case ONE_DIM:
+		for(int i = -1; i < 2; ++i) {
+		    std::cout << "index = " << index << "\n";
+		    assert(index < num_neighbors);
+		    neighbour_mask[index++] = i;
+		}
+	    break;
+	    case TWO_DIM:
+		for (int y = -1; y <= 1; ++y) {
+		    for (int x = -1; x <= 1; ++x) {
+		    	std::cout << "index = " << index << "\n";
+			assert(index < num_neighbors);
+			int neighbor = INDEX(x, y, width);
+			neighbour_mask[index++] = neighbor;
+		    }
+		}
+	    break;
+	    default:
+		assert(0 && "unreachable");
+	}
     }
 };
