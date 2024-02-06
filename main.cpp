@@ -9,12 +9,12 @@ typedef uint32_t u32;
 
 u32 alive_col = 0xFFFF1111;
 u32 dead_col  = 0xFF181818;
-size_t cells_width = 500;
-size_t cells_height = 500;
+size_t cells_width = 100;
+size_t cells_height = 100;
 float window_width = 900;
 float window_height = 600;
 float min_dim = std::min(window_width, window_height);
-int target_fps = 0;
+int target_fps = 60;
 Rectangle view_area = {0, 0, min_dim, min_dim};
 Cell_Automat<u32>* selected_automat;
 bool autoplay = false;
@@ -26,7 +26,6 @@ void one_dim_rules(Cell_Automat<u32>& automat) {
 	int ruleset[8] = {0, 0, 0, 1, 1, 1, 1, 0};
 	int y = automat.generation;
 	for (int x = 0; x < automat.width; ++x) {
-	    //std::cout << "index = " << index << "\n";
 	    u32 rule_index = 0;
 	    u32 index = INDEX(x, y, automat.width);
 	    for (int n_i = 0; n_i < 3; ++n_i) {
@@ -58,7 +57,7 @@ void gol_rules(Cell_Automat<u32>& automat) {
 		int new_index = index + automat.neighbour_mask[i];
 		if(new_index < 0) new_index += automat.width;
 		else if(new_index >= automat.size) new_index -= automat.width;
-		if (automat.cells[new_index] != automat.zero) {
+		if (new_index != index && automat.cells[new_index] != automat.zero) {
 		    neighbours++;
 		}
 	    }
@@ -94,29 +93,30 @@ void controls() {
 
 
 int main() {
+    SetRandomSeed(GetTime());
     InitWindow(window_width, window_height, "hi");
     SetWindowState(FLAG_WINDOW_RESIZABLE);
     SetTargetFPS(target_fps);
 
     Image h = GenImageColor(cells_width, cells_height, COLOR_FROM_U32(dead_col)); 
     u32* pixels = (u32*)h.data;
-    //for (int i = 0; i < cells_width*cells_height; ++i) {
-    //    if (i % 5 == 0) {
-    //        SetPixelColor(&pixels[i], COLOR_FROM_U32(alive_col), h.format);
-    //    }
-    //}
+    for (int i = 0; i < cells_width*cells_height; ++i) {
+        if (GetRandomValue(0,  1)) {
+            SetPixelColor(&pixels[i], COLOR_FROM_U32(alive_col), h.format);
+        }
+    }
+    //SetPixelColor(&pixels[cells_width / 2], COLOR_FROM_U32(alive_col), h.format);
     SetPixelColor(&pixels[cells_width / 2], COLOR_FROM_U32(alive_col), h.format);
-    //SetPixelColor(&pixels[cells_width / 2 + 2], COLOR_FROM_U32(alive_col), h.format);
-    //SetPixelColor(&pixels[(int)window_width + 101], COLOR_FROM_U32(alive_col), h.format);
+    SetPixelColor(&pixels[(int)window_width + 101], COLOR_FROM_U32(alive_col), h.format);
     Texture txt = LoadTextureFromImage(h);
 
     Cell_Automat<u32> gol_automat(TWO_DIM, cells_width, cells_height, 
-				   dead_col, alive_col, (u32*)h.data, gol_rules);
+				   dead_col, alive_col, pixels, gol_rules);
     Cell_Automat<u32> elem_automat(ONE_DIM, cells_width, cells_height, 
-				   dead_col, alive_col, (u32*)h.data, one_dim_rules);
+				   dead_col, alive_col, pixels, one_dim_rules);
     UnloadImage(h);
     selected_automat = &elem_automat;
-    std::cout << "size of automat in bytes = " << sizeof(gol_automat) << "\n";
+    std::cout << "alive color = " << alive_col << "\ndead color = " << dead_col << "\n";
 
     while (!WindowShouldClose()) {
 	assert(selected_automat && "selected automat is null");
@@ -125,7 +125,7 @@ int main() {
 	}
 	BeginDrawing();
 	DrawTexturePro(txt, {0, 0, (float)txt.width, (float)txt.height}, view_area, {0, 0}, 0, WHITE);
-	DrawRectangle(view_area.width, 0, window_width - view_area.width, window_height, LIGHTGRAY);
+	DrawRectangle(view_area.width, 0, window_width - view_area.width, window_height, RAYWHITE);
 	DrawFPS(view_area.width, 0);
 	EndDrawing();
 
