@@ -2,6 +2,7 @@
 #include "cell_automata.h"
 #include <iostream>
 #include <cassert>
+#include "gui.h"
 
 typedef uint32_t u32;
 
@@ -9,21 +10,33 @@ typedef uint32_t u32;
 
 u32 alive_col = 0xFFFF1111;
 u32 dead_col  = 0xFF181818;
-size_t cells_width = 100;
-size_t cells_height = 100;
-float window_width = 900;
-float window_height = 600;
-float min_dim = std::min(window_width, window_height);
-int target_fps = 60;
-Rectangle view_area = {0, 0, min_dim, min_dim};
-Cell_Automat<u32>* selected_automat;
-bool autoplay = false;
+
 KeyboardKey autoplay_key = KEY_SPACE;
 KeyboardKey next_frame_key = KEY_RIGHT;
 
+size_t cells_width = 1000;
+size_t cells_height = 1000;
+float window_width = 900;
+float window_height = 600;
+
+float min_dim = std::min(window_width, window_height);
+int controls_num_widgets = 10;
+Rectangle view_area = {0, 0, min_dim, min_dim};
+Rectangle control_area = {view_area.width, 0, window_width - view_area.width, window_height};
+Layout control_layout = Layout(control_area, VERTICAL, controls_num_widgets, 5);
+
+bool autoplay = false;
+int target_fps = 60;
+
+std::vector<Cell_Automat<u32>*> automata;
+int selected_automat_index = -1;
+
+Texture txt;
+
 void one_dim_rules(Cell_Automat<u32>& automat) {
-    if (automat.generation < automat.height) {
-	int ruleset[8] = {0, 0, 0, 1, 1, 1, 1, 0};
+    std::cout << "generation = " << automat.generation << "\nheight = " << automat.height << "\n";
+    if (automat.generation < automat.height - 1) {
+	int ruleset[8] = {1, 0, 1, 0, 0, 1, 0, 1};
 	int y = automat.generation;
 	for (int x = 0; x < automat.width; ++x) {
 	    u32 rule_index = 0;
@@ -50,7 +63,10 @@ void gol_rules(Cell_Automat<u32>& automat) {
 	for (int x = 0; x < automat.width; ++x) {
 	    int index = x + y * automat.width;
 	    u32 input_val = automat.cells[index];
-	    assert(input_val == automat.one || input_val == automat.zero && "wrong color");
+	    if (input_val != automat.one && input_val != automat.zero) {
+		std::cout << "wrong colors! input_val = " << input_val << "\n";
+		std::cout << "alive color = " << alive_col << "\ndead color = " << dead_col << "\n";
+	    }
 
 	    int neighbours = 0; 
 	    for (int i = 0; i < automat.num_neighbors; ++i) {
@@ -80,17 +96,43 @@ void resize() {
     window_height = GetScreenHeight();
     min_dim = std::min(window_width, window_height);
     view_area = {0, 0, min_dim, min_dim};
+    bool vertical = min_dim == window_width;
+    control_area = {.x = vertical ? 0 : view_area.width, 
+		    .y = vertical ? view_area.height : 0, 
+		    .width = vertical ? window_width : window_width - view_area.width, 
+		    .height = vertical ? window_height - view_area.height : window_height};
+    control_layout = Layout(control_area, VERTICAL, controls_num_widgets, 5);
 }
 
 void controls() {
-    if (autoplay || IsKeyReleased(next_frame_key)) {
-	selected_automat->apply_rules(); 
+    Cell_Automat<u32>* automat = automata[selected_automat_index];
+    if (automat && autoplay || IsKeyReleased(next_frame_key)) {
+	automat->apply_rules(); 
+	UpdateTexture(txt, automat->cells);
     }
-    if(IsKeyReleased(autoplay_key)) {
+
+    if (GuiButton(control_layout.get_slot(controls_num_widgets - 3), "next automat")) {
+	selected_automat_index++;
+	selected_automat_index %= automata.size();
+	UpdateTexture(txt, automat->cells);
+    }
+
+    GuiToggle(control_layout.get_slot(controls_num_widgets - 2), "Play", &autoplay);
+    if (IsKeyReleased(autoplay_key)) {
 	autoplay = !autoplay;
+    }
+
+    if (GuiButton(control_layout.get_slot(controls_num_widgets - 1), "Restart")) {
+	automat->generation = 0;
+	automat->randomize_cells();
+	UpdateTexture(txt, automat->cells);
     }
 }
 
+void add_automat(Cell_Automat<u32>* automat) {
+    automata.push_back(automat);
+    std::cout << "added automat\n";
+}
 
 int main() {
     SetRandomSeed(GetTime());
@@ -108,30 +150,33 @@ int main() {
     //SetPixelColor(&pixels[cells_width / 2], COLOR_FROM_U32(alive_col), h.format);
     SetPixelColor(&pixels[cells_width / 2], COLOR_FROM_U32(alive_col), h.format);
     SetPixelColor(&pixels[(int)window_width + 101], COLOR_FROM_U32(alive_col), h.format);
-    Texture txt = LoadTextureFromImage(h);
+    txt = LoadTextureFromImage(h);
 
     Cell_Automat<u32> gol_automat(TWO_DIM, cells_width, cells_height, 
 				   dead_col, alive_col, pixels, gol_rules);
     Cell_Automat<u32> elem_automat(ONE_DIM, cells_width, cells_height, 
 				   dead_col, alive_col, pixels, one_dim_rules);
     UnloadImage(h);
-    selected_automat = &elem_automat;
+    automata.push_back(&gol_automat);
+    automata.push_back(&elem_automat);
+
+    selected_automat_index = 0;
+
     std::cout << "alive color = " << alive_col << "\ndead color = " << dead_col << "\n";
 
     while (!WindowShouldClose()) {
-	assert(selected_automat && "selected automat is null");
 	if (IsWindowResized()) {
 	    resize();
 	}
 	BeginDrawing();
+
 	DrawTexturePro(txt, {0, 0, (float)txt.width, (float)txt.height}, view_area, {0, 0}, 0, WHITE);
-	DrawRectangle(view_area.width, 0, window_width - view_area.width, window_height, RAYWHITE);
 	DrawFPS(view_area.width, 0);
-	EndDrawing();
 
-	UpdateTexture(txt, selected_automat->cells);
-
+	DrawRectangleRec(control_area, RAYWHITE);
 	controls();
+
+	EndDrawing();
     }
 
     UnloadTexture(txt);

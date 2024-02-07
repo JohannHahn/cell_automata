@@ -1,4 +1,6 @@
 #pragma once
+#include <cstdlib>
+#include <ctime>
 #include <iostream>
 #include <cassert>
 
@@ -28,11 +30,13 @@ public:
 	set_buf(empty, size, zero);
 
 	setup_neighborhood();
+	srand(time(NULL));
     };
     ~Cell_Automat() {
 	delete[] cells;
 	delete[] empty;
 	delete[] neighbour_mask;
+	std::cout << "Cell automat destructor\n";
     };
 
     static constexpr int neighbourhood_sizes[AUTOMATA_TYPE_MAX] = {3, 9};
@@ -48,9 +52,19 @@ public:
     T one;
     Automata_Type type;
 
+    void randomize_cells() {
+	for (int i = 0; i < size; ++i) {
+	    if (rand() / (RAND_MAX / 2)) {
+		cells[i] = one;
+	    }
+	    else cells[i] = zero;
+	}
+    }
+
     void set_cells(T* new_input) {
 	memcpy(cells, new_input, sizeof(T) * size);
     }
+
     void apply_rules() {
 	rules(*this);
 	if(type != ONE_DIM) {
@@ -66,12 +80,15 @@ public:
 	}
     }
 private:
+
     void (*rules) (Cell_Automat& automat);
+
     void switch_buffers() {
 	T* h = cells;
 	cells = empty;
 	empty = h;
     }
+
     void setup_neighborhood() {
 	num_neighbors = neighbourhood_sizes[type];
 	neighbour_mask = new int[num_neighbors];
