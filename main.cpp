@@ -1,5 +1,6 @@
 #include "raylib/src/raylib.h"
 #include "cell_automata.h"
+#include <cmath>
 #include <iostream>
 #include <cassert>
 #include <string>
@@ -37,6 +38,7 @@ Cell_Automat<u32>* selected_automat = NULL;
 int selected_automat_index = -1;
 
 Texture txt;
+Rectangle selected_pixel;
 
 void select_automat(int i) {
     assert(i >= 0 && i < automata.size() && "wrong index");
@@ -123,6 +125,10 @@ void controls() {
 	}
     }
 
+    if (GuiButton(control_layout.get_slot(controls_num_widgets - 5), "erase")) {
+	selected_automat->clear_cells();
+	UpdateTexture(txt, selected_automat->cells);
+    }
     GuiSlider(control_layout.get_slot(controls_num_widgets - 4), "0", std::to_string(max_fps).c_str(), &target_fps, 0.f, max_fps);
 
     if (GuiButton(control_layout.get_slot(controls_num_widgets - 3), "next automat")) {
@@ -141,6 +147,17 @@ void controls() {
 	selected_automat->generation = 0;
 	selected_automat->randomize_cells();
 	UpdateTexture(txt, selected_automat->cells);
+    }
+    Vector2 mouse_pos = GetMousePosition();
+    if (CheckCollisionPointRec(mouse_pos, view_area)) {
+	float cell_width = view_area.width / (float)cells_width;
+	float cell_height = view_area.height / (float)cells_height;
+	selected_pixel = {mouse_pos.x - cell_width / 2.f , mouse_pos.y - cell_height / 2.f, cell_width, cell_height};
+	if (IsMouseButtonDown(MOUSE_BUTTON_LEFT)) {
+	    Vector2 mouse_pos_projected = {mouse_pos.x / view_area.width * cells_width, mouse_pos.y / view_area.height * cells_height};
+	    selected_automat->cells[INDEX((int)mouse_pos_projected.x, (int)mouse_pos_projected.y, selected_automat->width)] = selected_automat->one;
+	    UpdateTexture(txt, selected_automat->cells);
+	}
     }
 }
 
@@ -193,6 +210,7 @@ int main() {
 	    Rectangle{view_area.x, view_area.y, view_area.width, (float)selected_automat->generation * (view_area.height / (float)cells_height)} : 
 	    view_area;
 	DrawTexturePro(txt, source, dest, {0.f, 0.f}, 0.f, WHITE);
+	DrawRectangleLinesEx(selected_pixel, 5.f, WHITE);
 
 	DrawFPS(view_area.width, 0);
 	EndDrawing();

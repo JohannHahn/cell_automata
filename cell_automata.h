@@ -13,9 +13,6 @@ enum Automata_Type {
 
 template<typename T> class Cell_Automat {
 public:
-    Cell_Automat(Automata_Type type, size_t width, size_t height, T zero_value, T one_value, T* new_input = NULL):
-	type(type), zero(zero_value), one(one_value), width(width), height(height), rules(rules) {
-    }
     Cell_Automat(Automata_Type type, size_t width, size_t height, T zero_value, T one_value, T* new_input = NULL,
 		 void (*rules) (Cell_Automat& automat) = NULL
 		 ):
@@ -54,6 +51,10 @@ public:
     T zero;
     T one;
     Automata_Type type;
+
+    void clear_cells() {
+	set_buf(cells, size, zero);
+    }
 
     void randomize_cells() {
 	for (int i = 0; i < size; ++i) {
