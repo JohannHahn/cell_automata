@@ -196,7 +196,6 @@ private:
 	empty = h;
     }
 
-
     void one_dim_rules_func() {
 	if (generation < height - 1) {
 	    int y = generation;

@@ -16,6 +16,7 @@ enum control_view_type {
     CURRENT, NEXT, CONTROL_VIEW_MAX
 };
 control_view_type control_window_type = CURRENT;
+bool mouse_draw = true;
 
 u32 alive_col = 0xFFFF1111;
 u32 dead_col  = 0xFF181818;
@@ -111,6 +112,18 @@ void control_current_automat() {
 	    UpdateTexture(txt, active_automat.cells);
 	}
     }
+    // info about current layout
+    Layout info_layout = Layout(control_layout.get_slot(control_index++, true), HORIZONTAL, 2, 1.f);
+    float text_height = info_layout.get_slot(0).height;
+    std::string type = active_automat.type == ONE_DIM ? "Type:\n Elementary\n One dimensional" : "Type:\n Two dimensional"; type += "\n";
+    GuiDrawText(type.c_str(), info_layout.get_slot(0, true), TEXT_ALIGN_LEFT, WHITE);
+    std::string dims = "Width = " + std::to_string(active_automat.width) + "\nHeight = " + std::to_string(active_automat.height) + "\n";
+    GuiDrawText(dims.c_str(), info_layout.get_slot(1, true), TEXT_ALIGN_LEFT, WHITE);
+    
+    info_layout = Layout(control_layout.get_slot(control_index++, true), HORIZONTAL, 2, 1.f);
+    GuiDrawText("Ruleset:", info_layout.get_slot(0, true), TEXT_ALIGN_LEFT, WHITE);
+    std::string ruleset_str = active_automat.type == TWO_DIM ? "Conway's game of life" : "";
+    GuiDrawText(ruleset_str.c_str(), info_layout.get_slot(1, true), TEXT_ALIGN_LEFT, WHITE);
     // input one dimensional rules as binary
     if (active_automat.type == ONE_DIM) {
 	bool secret_view = true;
@@ -119,12 +132,13 @@ void control_current_automat() {
 	    std::string binary = "000";
 	    Layout vert_layout = Layout(ruleset_layout.get_slot(i), VERTICAL, 2);
 	    int bit = BIT_AT(7 - i, active_automat.one_dim_rules);
-	    char bit_char = '0' + bit;
+	    std::string bit_str; 
+	    bit_str += '0' + bit;
 	    for (int j = 0; j < 3; ++j) {
 		binary[2-j] = '0' + BIT_AT(j, i);
 	    }
 	    binary += "\nflip";
-	    GuiDrawText(&bit_char, vert_layout.get_slot(0), TEXT_ALIGN_MIDDLE, WHITE);
+	    GuiDrawText(bit_str.c_str(), vert_layout.get_slot(0), TEXT_ALIGN_MIDDLE, WHITE);
 	    if (GuiButton(vert_layout.get_slot(1), binary.c_str())) {
 		if (bit) {
 		    BIT_RESET(7 - i, active_automat.one_dim_rules);
@@ -180,17 +194,20 @@ void controls() {
 	UpdateTexture(txt, active_automat.cells);
     }
 
-    Vector2 mouse_pos = GetMousePosition();
-    if (CheckCollisionPointRec(mouse_pos, view_area)) {
-	brush_view_rec.x = floor(mouse_pos.x - cell_width / 2.f); 
-	brush_view_rec.y = floor(mouse_pos.y - cell_height / 2.f);
-	if (IsMouseButtonDown(MOUSE_BUTTON_LEFT)) {
-	    
-	    Vector2 mouse_pos_projected = {mouse_pos.x / view_area.width * cell_cols, mouse_pos.y / view_area.height * cell_rows};
-	    active_automat.cells[INDEX((int)mouse_pos_projected.x, (int)mouse_pos_projected.y, active_automat.width)] = active_automat.one;
-	    UpdateTexture(txt, active_automat.cells);
+    GuiCheckBox(control_layout.get_slot(control_index++, true), "Mouse drawing", &mouse_draw);
+    if (mouse_draw) {
+	Vector2 mouse_pos = GetMousePosition();
+	if (CheckCollisionPointRec(mouse_pos, view_area)) {
+	    brush_view_rec.x = floor(mouse_pos.x - cell_width / 2.f); 
+	    brush_view_rec.y = floor(mouse_pos.y - cell_height / 2.f);
+	    if (IsMouseButtonDown(MOUSE_BUTTON_LEFT)) {
+		
+		Vector2 mouse_pos_projected = {mouse_pos.x / view_area.width * cell_cols, mouse_pos.y / view_area.height * cell_rows};
+		active_automat.cells[INDEX((int)mouse_pos_projected.x, (int)mouse_pos_projected.y, active_automat.width)] = active_automat.one;
+		UpdateTexture(txt, active_automat.cells);
+	    }
+	    DrawRectangleLinesEx(brush_view_rec, 2.f, WHITE);
 	}
-	DrawRectangleLinesEx(brush_view_rec, 2.f, WHITE);
     }
 }
 
@@ -215,7 +232,6 @@ int main() {
     UpdateTexture(txt, active_automat.cells);
 
     std::cout << "alive color = " << alive_col << "\ndead color = " << dead_col << "\n";
-    std::cout << "test = " << int() << "\n";
     control_layout.set_spacing(min_dim / 50.f);
 
     while (!WindowShouldClose()) {
