@@ -201,6 +201,7 @@ void control_next_automat() {
 	    std::cout << "Apply: after setting input\n";
 	}
 	std::cout << "Apply: after apply\n";
+	assert(active_automat->is_initialized());
 	assert(active_automat->rules && "rules not set on the new automat");
     }
 
