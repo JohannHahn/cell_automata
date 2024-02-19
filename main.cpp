@@ -1,5 +1,5 @@
 #include "raygui.h"
-#include "raylib.h"
+#include "raylib/src/raylib.h"
 #include "cell_automata.h"
 #include <cinttypes>
 #include <cmath>
@@ -8,8 +8,6 @@
 #include <cassert>
 #include <string>
 #include "gui.h"
-
-typedef uint32_t u32;
 
 #define COLOR_FROM_U32(c) *(Color*)&c
 
@@ -26,8 +24,8 @@ u32 dead_col  = 0xFF181818;
 KeyboardKey autoplay_key = KEY_SPACE;
 KeyboardKey next_frame_key = KEY_RIGHT;
 
-int cell_cols = 200;
-int cell_rows = 200;
+int cell_cols = 100;
+int cell_rows = 100;
 int max_cols = 1000;
 int max_rows = 1000;
 int min_cols = 10;
@@ -180,7 +178,7 @@ void control_next_automat() {
     next_cell_rows = round(next_cell_rows);
 
     if (GuiButton(get_next_control_slot(), "Apply\n(empties buffer)")) {
-	active_automat->init((Automata_Type)automat_type_selection, next_cell_cols, next_cell_rows, dead_col, alive_col);
+	active_automat->init((Automata_Type)automat_type_selection, next_cell_cols, next_cell_rows, dead_col, &alive_col, 1);
 	std::cout << "Apply: after reiniting the automat\n";
 
 	UnloadTexture(txt);
@@ -259,7 +257,7 @@ void controls() {
 	    if (IsMouseButtonDown(MOUSE_BUTTON_LEFT)) {
 		
 		Vector2 mouse_pos_projected = {mouse_pos.x / view_area.width * active_automat->width, mouse_pos.y / view_area.height * active_automat->height};
-		active_automat->cells[INDEX((int)mouse_pos_projected.x, (int)mouse_pos_projected.y, active_automat->width)] = active_automat->one;
+		active_automat->cells[INDEX((int)mouse_pos_projected.x, (int)mouse_pos_projected.y, active_automat->width)] = alive_col;
 	    }
 	    DrawRectangleLinesEx(brush_view_rec, 2.f, WHITE);
 	}
@@ -279,11 +277,11 @@ int main() {
     Image h = GenImageColor(cell_cols, cell_rows, COLOR_FROM_U32(dead_col));
     txt = LoadTextureFromImage(h);
     UnloadImage(h);
-
-    active_automat = new Cell_Automat<u32>(ONE_DIM, cell_cols, cell_rows, dead_col, alive_col);
-    active_automat->randomize_cells();
-    active_automat->set_ruleset_dec(30);
-    next_automat = new Cell_Automat<u32>(TWO_DIM, cell_cols, cell_rows, dead_col, alive_col);
+    
+    active_automat = new Cell_Automat<u32>(TWO_DIM, cell_cols, cell_rows, dead_col, &alive_col, 1);
+    active_automat->clear_cells();
+    active_automat->set_rules2D(active_automat->sand_rules_func);
+    next_automat = new Cell_Automat<u32>(TWO_DIM, cell_cols, cell_rows, dead_col, &alive_col, 1);
 
     UpdateTexture(txt, active_automat->cells);
 
