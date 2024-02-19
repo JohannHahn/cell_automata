@@ -220,7 +220,7 @@ const char* read_word(const char* words, int word) {
 
 void table(Rectangle boundary, int num_cols, int num_rows, 
 		const char* header_values, const char* body_values, void(*on_click)(void* data)) {
-    Layout table_layout = Layout(boundary, SLICE_VERT, 0.1f);
+    Layout table_layout = Layout(boundary, SLICE_VERT, 0.2f);
     Layout header = Layout(table_layout.get_slot(0), HORIZONTAL, num_cols);
     Layout row_layout = Layout(table_layout.get_slot(1), VERTICAL, num_rows);
     Color header_background_col = ColorAlpha(GRAY, 0.3f);

@@ -23,10 +23,12 @@ public:
         init(AUTOMATA_TYPE_MAX, 0, 0, 0, T(), T());		
     }
 
-    Cell_Automat(Automata_Type type, size_t width, size_t height, T zero_value, T one_value,
-		 void (*rules) (Cell_Automat& automat) = NULL, T* input = NULL,
-		const char* rules_one_dim_str = NULL, int rules_one_dim_int = -1) {
-	init(type, width, height, zero_value, one_value, rules, input, rules_one_dim_str, rules_one_dim_int);
+    Cell_Automat(Cell_Automat& automat) {
+        init(automat);		
+    }
+
+    Cell_Automat(Automata_Type type, size_t width, size_t height, T zero_value, T one_value) {
+	init(type, width, height, zero_value, one_value);
     };
 
     ~Cell_Automat() {
@@ -53,57 +55,59 @@ public:
     Automata_Type type;
     u64 one_dim_rules = 0;
 
-    void init(Automata_Type type, size_t width, size_t height, T zero, T one,
-		 void (*rules) (Cell_Automat& automat) = NULL, T* input = NULL, 
-	      const char* one_dim_rules_str = NULL, int one_dim_rules_int = -1) {
+    void init(const Cell_Automat& automat) {
+	init(automat.type, automat.width, automat.height, automat.zero, automat.one);
+	this.rules = automat.rules;
+	this->set_cells(automat.cells);
+    }
+    void init(Automata_Type type, size_t width, size_t height, T zero, T one) {
+	std::cout << "init: type = " << type << ", width = " << width << " height = " << height << ", one = " << one << " zero = " << zero << "\n";
 	size = width * height;
 	this->width = width;
 	this->height = height;
 	this->zero = zero;
 	this->one = one;
 	this->type = type;
+
+	if (cells) delete[] cells;
+	if (initial_cells) delete[] initial_cells;
+	if (empty) delete[] empty;
 	cells = new T[size];
 	initial_cells = new T[size];
 	empty = new T[size];
-	if(input) {
-	    memcpy(cells, input, sizeof(T) * size);
-	    memcpy(initial_cells, input, sizeof(T) * size);
-	}
-	else {
-	    set_buf(cells, size, zero);
-	    set_buf(initial_cells, size, zero);
-	}
+
+	set_buf(cells, size, zero);
+	set_buf(initial_cells, size, zero);
 	set_buf(empty, size, zero);
 	setup_neighborhood();
 	srand(time(NULL));
 	switch (type) {
 	    case ONE_DIM:
-		if(one_dim_rules_str) {
-		    set_ruleset_bin(one_dim_rules_str);
-		}
-		if(one_dim_rules_int >= 0) {
-		    set_ruleset_dec(one_dim_rules_int);
-		}
+		this->rules = one_dim_rules_func;
 	    break;
 	    case TWO_DIM:
+
 		if (rules) this->rules = rules;
+		else this->rules = gol_rules_func;
 	    break;
 	    case AUTOMATA_TYPE_MAX:
 	    break;
 	    default:
 	    assert(0 && "unreachable");
 	}
-	std::cout << "finished initializing automat\n";
+	std::cout << "init: finished initializing automat\n";
     }
 
     void setup_neighborhood() {
 	assert(type >= 0 && type <= AUTOMATA_TYPE_MAX);
 	if (type == AUTOMATA_TYPE_MAX) num_neighbors = 0;
 	else num_neighbors = neighbourhood_sizes[type];
+
 	if (neighbour_mask) {
 	    delete [] neighbour_mask;
 	}
 	neighbour_mask = new int[num_neighbors];
+
 	int index = 0;
 	switch(type) {
 	    case ONE_DIM:
@@ -130,7 +134,7 @@ public:
     }
     void set_ruleset_dec(u64 dec) {
 	one_dim_rules = dec;
-	std::cout << "new ruleset = " << one_dim_rules << "\n";
+	std::cout << "new decimal ruleset = " << one_dim_rules << "\n";
     }
     void set_ruleset_bin(const char* rules_string) {
 	assert(type == ONE_DIM && "wrong type");
@@ -148,8 +152,19 @@ public:
 	    }
 	    i++;
 	}
-	std::cout << "new ruleset = " << one_dim_rules << "\n";
+	std::cout << "new string ruleset = " << one_dim_rules << "\n";
     }
+
+    void print() {
+	std::cout << "\n----Automat info--------\n";
+	std::cout << "type: " << (type == ONE_DIM ? "1D elementary" : "2D") << "\n";
+	std::cout << "width = "  << width << ", height = " << height << "\n";
+	std::cout << "empty/dead value = "  << zero << ", alive/one value = " << one << "\n";
+	std::cout << "cells pointer = "  << cells << ", empty/next frame pointer = " << empty << "\n";
+	std::cout << "number of neighbours of any cell = "  << num_neighbors << ", neighbourhood mask pointer = " << neighbour_mask << "\n";
+	std::cout << "----Automat info end----\n";
+    }
+
     void clear_cells() {
 	set_buf(cells, size, zero);
     }
@@ -172,12 +187,11 @@ public:
     }
 
     void apply_rules() {
+	rules(*this);
 	if (type != ONE_DIM) {
-	    rules(*this);
 	    switch_buffers();
 	}
 	else {
-	    one_dim_rules_func();
 	    if (generation < height - 1) generation++;
 	}
     }
@@ -186,34 +200,75 @@ public:
 	    buf[i] = val;
 	}
     }
-private:
+
+    void set_rules_gol() {
+	rules = gol_rules_func;
+    }
+
+    bool is_initialized() {
+	return type != AUTOMATA_TYPE_MAX;
+    }
 
     void (*rules) (Cell_Automat& automat);
 
+    // rules of conway's game of life
+    static void gol_rules_func(Cell_Automat& automat) {
+	for (int y = 0; y < automat.height; ++y) {
+	    for (int x = 0; x < automat.width; ++x) {
+		int index = x + y * automat.width;
+		T input_val = automat.cells[index];
+		if (input_val != automat.one && input_val != automat.zero) {
+		    std::cout << "wrong colors! input_val = " << input_val << "\n";
+		    std::cout << "alive color = " << automat.one << "\ndead color = " << automat.zero << "\n";
+		}
+
+		int neighbours = 0; 
+		for (int i = 0; i < automat.num_neighbors; ++i) {
+		    int new_index = index + automat.neighbour_mask[i];
+		    if(new_index < 0) new_index += automat.width;
+		    else if(new_index >= automat.size) new_index -= automat.width;
+		    if (new_index != index && automat.cells[new_index] != automat.zero) {
+			neighbours++;
+		    }
+		}
+
+		bool alive = (input_val == automat.one);
+		if(alive && neighbours == 3) automat.empty[index] = automat.one;
+		else if(alive && neighbours == 2) automat.empty[index] = automat.one;
+		else if(alive && neighbours < 2) automat.empty[index] = automat.zero;
+		else if(alive && neighbours > 3) automat.empty[index] = automat.zero;
+		else if(!alive && neighbours == 3) automat.empty[index] = automat.one;
+		else if(!alive && neighbours != 3) automat.empty[index] = automat.zero;
+		else {
+		    assert(0 && "unreachable");
+		}
+	    }
+	}
+    }
     void switch_buffers() {
 	T* h = cells;
 	cells = empty;
 	empty = h;
     }
 
-    void one_dim_rules_func() {
-	if (generation < height - 1) {
-	    int y = generation;
-	    for (int x = 0; x < width; ++x) {
+    static void one_dim_rules_func(Cell_Automat& automat) {
+	if (automat.generation < automat.height - 1) {
+	    int y = automat.generation;
+	    for (int x = 0; x < automat.width; ++x) {
 		T rule_index = 0;
-		T index = INDEX(x, y, width);
+		T index = INDEX(x, y, automat.width);
 		for (int n_i = 0; n_i < 3; ++n_i) {
-		    int new_index = INDEX(x, y, width) + neighbour_mask[n_i];
-		    if (new_index < 0) new_index += width;
-		    else if (new_index >= size) new_index -= width;
-		    if (cells[new_index] == one) {
+		    int new_index = INDEX(x, y, automat.width) + automat.neighbour_mask[n_i];
+		    if (new_index < 0) new_index += automat.width;
+		    else if (new_index >= automat.size) new_index -= automat.width;
+		    if (automat.cells[new_index] == automat.one) {
 			rule_index |= (T)(1) << (2 - n_i);
 		    }
 		}
-		T new_value = BIT_AT(rule_index, one_dim_rules) ? one : zero;
+		T new_value = BIT_AT(rule_index, automat.one_dim_rules) ? automat.one : automat.zero;
 		assert(rule_index < 8);
 		assert(rule_index >= 0);
-		cells[INDEX(x, y + 1, width)] = new_value;
+		automat.cells[INDEX(x, y + 1, automat.width)] = new_value;
 	    }
 	}
     }
