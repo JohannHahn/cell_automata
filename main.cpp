@@ -1,5 +1,5 @@
 #include "raygui.h"
-#include "raylib/src/raylib.h"
+#include "raylib.h"
 #include "cell_automata.h"
 #include <cinttypes>
 #include <cstring>
