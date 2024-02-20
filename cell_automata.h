@@ -59,6 +59,7 @@ public:
     // state before the simulation started
     T* initial_cells;
     T zero;
+    T selected_fill;
     std::vector<T> fill_values;
     Automata_Type type;
     u64 one_dim_rules = 0;
@@ -74,9 +75,11 @@ public:
 	this->height = height;
 	this->zero = zero;
 	this->type = type;
+	assert(fill_values && fill_values_size >= 1);
 	for (int i = 0; i < fill_values_size; ++i) {
 	    this->fill_values.push_back(fill_values[i]);
 	}
+	this->selected_fill = this->fill_values[0];
 
 	if (cells) delete[] cells;
 	if (initial_cells) delete[] initial_cells;
@@ -222,10 +225,6 @@ public:
 	rules = gol_rules_func;
     }
 
-    void set_rules_sand() {
-	rules = sand_rules_func;
-    }
-
     void set_rules2D(rules_func rules) {
 	this->rules = rules;
     }
@@ -288,43 +287,11 @@ public:
 	}
     }
     
-    static void sand_rules_func(Cell_Automat& automat) {	
-	u32 sand_color = automat.fill_values[0];
-	for (int y = 0; y < automat.height; ++y) {
-	    for (int x = 0; x < automat.width; ++x) {
-		int index = INDEX_AUTOMAT(x, y);
-		if (automat.cells[index] == sand_color) {
-		    // fall down
-		    if (!move_if_empty(automat, index, INDEX_AUTOMAT(x, y + 1))) {
-			// randomly try falling left or right first
-			bool left = false; bool right = false;
-			if (GetRandomValue(0, 1)) {
-			    left = move_if_empty(automat, index, INDEX_AUTOMAT(x - 1, y + 1));
-			    if (!left) {
-				right = move_if_empty(automat, index, INDEX_AUTOMAT(x + 1, y + 1));
-			    }
-			}
-			else {
-			    right = move_if_empty(automat, index, INDEX_AUTOMAT(x + 1, y + 1));
-			    if (!right) {
-				left = move_if_empty(automat, index, INDEX_AUTOMAT(x - 1, y + 1));
-			    }
-			}
-			// cant move further
-			if (!left && !right) {
-			    automat.empty[index] = sand_color;		    
-			}
-		    }
-		}
-	    }
-	}
-    }
-
-    static bool move_if_empty(Cell_Automat& automat, int src, int dst) {
+    static bool move_if_empty(Cell_Automat& automat, int src, int dst, T fill_value) {
 	if (dst >= 0 && dst < automat.size) {
 	    if (automat.cells[dst] == automat.zero) {
-		automat.empty[dst] = automat.cells[src]; 
-		automat.empty[src] = automat.zero;
+		automat.empty[dst] = fill_value; 
+		//automat.empty[src] = automat.zero;
 		return true;
 	    }
 	}

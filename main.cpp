@@ -14,6 +14,13 @@
 enum state {
     VIEW_CURRENT, PREPARE_NEXT, STATE_MAX
 };
+
+enum element_ids {
+    SAND_FALLING, SAND, ELEMENT_IDS_MAX
+};
+
+u32 elements[ELEMENT_IDS_MAX] = {0xFF11AAFF, 0xFF10AAFF};
+
 state state = VIEW_CURRENT;
 bool mouse_draw = true;
 bool debugging = false;
@@ -62,6 +69,44 @@ Texture txt;
 Rectangle brush_view_rec = {0.f, 0.f, 1.f, 1.f};
 float brush_width = 1.f;
 float brush_height = 1.f;
+
+
+void sand_rules_func(Cell_Automat<u32>& automat) {	
+    u32 sand_color = automat.fill_values[SAND];
+    u32 sand_fall_color = automat.fill_values[SAND_FALLING];
+    int side_move = 4;
+    for (int y = 0; y < automat.height; ++y) {
+	for (int x = 0; x < automat.width; ++x) {
+	    int index = INDEX_AUTOMAT(x, y);
+	    if (automat.cells[index] == sand_fall_color) {
+		// fall down
+		if (!automat.move_if_empty(automat, index, INDEX_AUTOMAT(x, y + 1), sand_fall_color)) {
+		    // randomly try falling left or right diagonally first
+		    bool side1 = false; bool side2 = false;
+		    int x_dif = GetRandomValue(0, 1) ? 1 : -1;
+		    int x_dif2 = x_dif == 1 ? -1 : 1;
+		    side1 = automat.move_if_empty(automat, index, INDEX_AUTOMAT(x + x_dif, y + 1), sand_fall_color);	
+		    if (!side1) side2 = automat.move_if_empty(automat, index, INDEX_AUTOMAT(x + x_dif2, y + 1), sand_fall_color);
+		    // cant move further
+		    if (!side1 && !side2) {
+			automat.empty[index] = sand_color;
+			// try going left or right sideways
+			bool left_or_right = GetRandomValue(0,1);
+			int i = 0;
+			int next_step = left_or_right ? 1 : -1;
+			int next_index = INDEX_AUTOMAT(x + next_step, y);
+			if (!automat.move_if_empty(automat, index, next_index, sand_fall_color)) {
+			    automat.empty[index] = sand_color;
+			}
+		    }
+		}
+	    }
+	    else if (automat.cells[index] == sand_color) {
+		if (!automat.move_if_empty(automat, index, INDEX_AUTOMAT(x, y + 1), sand_fall_color)) automat.empty[index] = sand_color;
+	    }
+	}
+    }
+}
 
 
 void resize() {
@@ -257,7 +302,7 @@ void controls() {
 	    if (IsMouseButtonDown(MOUSE_BUTTON_LEFT)) {
 		
 		Vector2 mouse_pos_projected = {mouse_pos.x / view_area.width * active_automat->width, mouse_pos.y / view_area.height * active_automat->height};
-		active_automat->cells[INDEX((int)mouse_pos_projected.x, (int)mouse_pos_projected.y, active_automat->width)] = alive_col;
+		active_automat->cells[INDEX((int)mouse_pos_projected.x, (int)mouse_pos_projected.y, active_automat->width)] = active_automat->selected_fill;
 	    }
 	    DrawRectangleLinesEx(brush_view_rec, 2.f, WHITE);
 	}
@@ -278,9 +323,9 @@ int main() {
     txt = LoadTextureFromImage(h);
     UnloadImage(h);
     
-    active_automat = new Cell_Automat<u32>(TWO_DIM, cell_cols, cell_rows, dead_col, &alive_col, 1);
+    active_automat = new Cell_Automat<u32>(TWO_DIM, cell_cols, cell_rows, dead_col, elements, ELEMENT_IDS_MAX);
     active_automat->clear_cells();
-    active_automat->set_rules2D(active_automat->sand_rules_func);
+    active_automat->set_rules2D(sand_rules_func);
     next_automat = new Cell_Automat<u32>(TWO_DIM, cell_cols, cell_rows, dead_col, &alive_col, 1);
 
     UpdateTexture(txt, active_automat->cells);
@@ -291,9 +336,7 @@ int main() {
     while (!WindowShouldClose()) {
 	double start = GetTime();
 
-	if (IsWindowResized()) {
-	    resize();
-	}
+	if (IsWindowResized()) resize();
 
 	BeginDrawing();
 	ClearBackground(BLACK);
