@@ -269,14 +269,14 @@ public:
 	if (automat.generation < automat.height - 1) {
 	    int y = automat.generation;
 	    for (int x = 0; x < automat.width; ++x) {
-		T rule_index = 0;
-		T index = INDEX(x, y, automat.width);
+		u32 rule_index = 0;
+		int index = INDEX(x, y, automat.width);
 		for (int n_i = 0; n_i < 3; ++n_i) {
 		    int new_index = INDEX(x, y, automat.width) + automat.neighbour_mask[n_i];
 		    if (new_index < 0) new_index += automat.width;
 		    else if (new_index >= automat.size) new_index -= automat.width;
 		    if (automat.cells[new_index] == automat.fill_values[0]) {
-			rule_index |= (T)(1) << (2 - n_i);
+			rule_index |= (u32)(1) << (2 - n_i);
 		    }
 		}
 		T new_value = BIT_AT(rule_index, automat.one_dim_rules) ? automat.fill_values[0]: automat.zero;
@@ -287,13 +287,14 @@ public:
 	}
     }
     
-    static bool move_if_empty(Cell_Automat& automat, int src, int dst, T fill_value) {
-	if (dst >= 0 && dst < automat.size) {
-	    if (automat.cells[dst] == automat.zero) {
-		automat.empty[dst] = fill_value; 
+    bool move_if_empty(int src, int dst, T fill_value) {
+	if (dst >= 0 && dst < size) {
+	    if (cells[dst] == zero) {
+		empty[dst] = fill_value; 
 		//automat.empty[src] = automat.zero;
 		return true;
 	    }
+	    else return false;
 	}
 	return false;
     }
