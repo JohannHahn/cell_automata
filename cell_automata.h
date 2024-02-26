@@ -27,7 +27,7 @@ typedef void (*rules_func)(Cell_Automat&);
 public:
     Cell_Automat() {
 	std::cout << "CELL_AUTOMAT: empty automat created, initialize with init()\n";
-        init(AUTOMATA_TYPE_MAX, 0, 0, 0, T(), {}, 0);		
+        init(AUTOMATA_TYPE_MAX, 0, 0, T(), {}, 0);		
     }
 
     Cell_Automat(Cell_Automat& automat) {
@@ -75,6 +75,7 @@ public:
 	this->height = height;
 	this->zero = zero;
 	this->type = type;
+	if (type == AUTOMATA_TYPE_MAX) return;
 	assert(fill_values && fill_values_size >= 1);
 	for (int i = 0; i < fill_values_size; ++i) {
 	    this->fill_values.push_back(fill_values[i]);
@@ -291,12 +292,9 @@ public:
 	if (dst >= 0 && dst < size) {
 	    if (cells[dst] == zero) {
 		empty[dst] = fill_value; 
-		//automat.empty[src] = automat.zero;
 		return true;
 	    }
-	    else return false;
 	}
 	return false;
     }
-
 };

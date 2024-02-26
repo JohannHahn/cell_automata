@@ -1,3 +1,8 @@
+/*
+* TODO:	Fullscreen the field
+* TODO:	minimal controls on top? Only button controls?
+*/
+
 #include "raygui.h"
 #include "raylib/src/raylib.h"
 #include "cell_automata.h"
@@ -11,36 +16,38 @@
 
 #define COLOR_FROM_U32(c) *(Color*)&c
 
+enum defined_automata {
+    ELEM, GOL, PARTICLE 
+};
+
 enum state {
     VIEW_CURRENT, PREPARE_NEXT, STATE_MAX
 };
 
 enum cell_type {
-    EMPTY, SAND, CELL_TYPE_MAX
+    EMPTY_CELL, SAND_CELL, ELEM_CELL, GOL_CELL, CELL_TYPE_MAX
 };
 
-u32 cell_colors[CELL_TYPE_MAX] = {0xFF181818, 0xFF11AAFF};
+u32 cell_colors[CELL_TYPE_MAX] = {0xFF181818, 0xFF11AAFF, 0xFFFFFFFF, 0xFFCAFACA};
 
 struct Cell {
     cell_type type; 
     bool in_freefall;
-    bool full_stop;
     // how far can the element move sideways after falling
     //int side_range;
     bool operator==(Cell c) {
 	return this->type == c.type && this->in_freefall == c.in_freefall;
     }
-    friend std::ostream& operator<<(std::ostream& os, const Cell& obj) {
-	os << "type = " << obj.type << "\nin_freefall = " << obj.in_freefall << "\n";
-	os << "full_stop = " << obj.full_stop << "\n";
-	os << "color = " << cell_colors[obj.type] << "\n";
+    friend std::ostream& operator<<(std::ostream& os, const Cell& cell) {
+	os << "type = " << cell.type << "\nin_freefall = " << cell.in_freefall << "\n";
+	os << "color = " << cell_colors[cell.type] << "\n";
 	return os;
     }
 };
 
 const size_t fill_values_size = CELL_TYPE_MAX - 1;
-Cell fill_values[fill_values_size] = {{SAND, true}};
-Cell empty_cell = {EMPTY, false};
+Cell fill_values[fill_values_size] = {{SAND_CELL, true}};
+Cell empty_cell = {EMPTY_CELL, false};
 
 state state = VIEW_CURRENT;
 bool mouse_draw = true;
@@ -70,7 +77,8 @@ Rectangle control_area = {view_area.width, 0, window_width - view_area.width, wi
 int controls_num_widgets = 10;
 Layout control_layout = Layout(control_area, VERTICAL, controls_num_widgets, 5);
 int control_index = 0;
-bool automat_type_selection = 0;
+
+defined_automata automat_type_selection = PARTICLE;
 
 bool autoplay = false;
 double seconds_passed = 0.f;
@@ -78,12 +86,13 @@ float max_fps = 100.f;
 float target_fps = 60;
 
 Cell_Automat<Cell>* active_automat;
-Cell_Automat<Cell>* next_automat;
 float next_cell_cols = 0;
 float next_cell_rows = 0;
 u64 next_one_dim_ruleset = 0;
-Cell* next_input = NULL;
-Cell_Automat<Cell>* prev_automat;
+
+Cell_Automat<Cell> gol_automat;
+Cell_Automat<Cell> elementary_automat;
+Cell_Automat<Cell> sand_automat;
 
 Texture txt;
 
@@ -96,26 +105,36 @@ void sand_rules_func(Cell_Automat<Cell>& automat) {
     for (int y = 0; y < automat.height; ++y) {
 	for (int x = 0; x < automat.width; ++x) {
 	    int index = INDEX_AUTOMAT(x, y);
+	    int next_row_index = INDEX_AUTOMAT(x, y + 1);
 	    Cell* cell = &automat.cells[index];
 	    // fall down
-	    if (cell->type == SAND && cell->in_freefall 
-		&& !automat.move_if_empty(index, INDEX_AUTOMAT(x, y + 1), *cell)) {
-		cell->in_freefall = false;
-		automat.empty[index] = *cell; 
-	    }
-	    else if (cell->type == SAND && !cell->in_freefall) { 
-		if (!cell->full_stop) {
-		    // randomly try falling left or right diagonally first
-		    bool side1 = false; bool side2 = false;
-		    int x_dif = GetRandomValue(0, 1) ? 1 : -1;
-		    int x_dif2 = x_dif == 1 ? -1 : 1;
-		    side1 = automat.move_if_empty(index, INDEX_AUTOMAT(x + x_dif, y + 1), *cell);	
-		    if (!side1) side2 = automat.move_if_empty(index, INDEX_AUTOMAT(x + x_dif2, y + 1), *cell);
-		    if (!side1 && !side2) cell->full_stop = true;
+	    if (cell->type == SAND_CELL && cell->in_freefall
+		&& !automat.move_if_empty(index, next_row_index, *cell)) {
+		bool side1 = false; bool side2 = false;
+		int x_dif = GetRandomValue(0, 1) ? 1 : -1;
+		int x_dif2 = x_dif == 1 ? -1 : 1;
+		side1 = automat.move_if_empty(index, INDEX_AUTOMAT(x + x_dif, y + 1), *cell);	
+		if (!side1) side2 = automat.move_if_empty(index, INDEX_AUTOMAT(x + x_dif2, y + 1), *cell);
+		if (!side1 && !side2) {
+		    automat.empty[index] = *cell; 
+		    cell->in_freefall = false;
 		}
-		if (cell->full_stop) {
+	    }
+	    if (cell->type == SAND_CELL && !cell->in_freefall) {
+		bool side1 = false; bool side2 = false;
+		int x_dif = GetRandomValue(0, 1) ? 1 : -1;
+		int x_dif2 = x_dif == 1 ? -1 : 1;
+		side1 = automat.move_if_empty(index, INDEX_AUTOMAT(x + x_dif, y + 1), *cell);	
+		if (!side1) side2 = automat.move_if_empty(index, INDEX_AUTOMAT(x + x_dif2, y + 1), *cell);
+		if (!side1 && !side2) {
 		    automat.empty[index] = *cell; 
 		}
+	    }
+	    else if (cell->type == SAND_CELL && !cell->in_freefall) {
+		if (automat.move_if_empty(index, next_row_index, *cell)) {
+		    cell->in_freefall = true;
+		}
+		else automat.empty[index] = *cell; 
 	    }
 	}
     }
@@ -123,10 +142,10 @@ void sand_rules_func(Cell_Automat<Cell>& automat) {
 
 void update_texture() {
     Image h = GenImageColor(active_automat->width, active_automat->height, 
-			    COLOR_FROM_U32(cell_colors[EMPTY]));
+			    COLOR_FROM_U32(cell_colors[EMPTY_CELL]));
     u32* pixels = (u32*)h.data;
     for (int i = 0; i < active_automat->size; ++i) {
-	if (active_automat->cells[i].type != EMPTY) {
+	if (active_automat->cells[i].type != EMPTY_CELL) {
 	    pixels[i] = cell_colors[active_automat->cells[i].type];
 	}
     }
@@ -150,24 +169,6 @@ void resize() {
     brush_view_rec.width = cell_width * brush_width;
     brush_view_rec.height = cell_height * brush_height;
     control_layout.set_spacing(min_dim / 30.f);
-}
-
-void set_active(Cell_Automat<Cell>* active) {
-    prev_automat = active_automat;
-    active_automat = active;
-}
-
-void switch_to_next() {
-    assert(state != PREPARE_NEXT && "switching from next to next");
-    state = PREPARE_NEXT;
-    set_active(next_automat);
-    autoplay = false;
-}
-
-void switch_back_to_current() {
-    assert(prev_automat->is_initialized() && "no current to switch back too");
-    state = VIEW_CURRENT;
-    set_active(prev_automat);
 }
 
 Rectangle get_next_control_slot(bool spaced = true) {
@@ -239,61 +240,16 @@ void control_current_automat() {
     }
 }
 
-void control_next_automat() {
-    GuiToggle(get_next_control_slot(), automat_type_selection ? "Type: 2D" : "Type: 1D", &automat_type_selection);
-
-    GuiSlider(get_next_control_slot(), std::to_string(min_cols).c_str(), std::to_string(max_cols).c_str(), &next_cell_cols, min_cols, max_cols);
-    GuiSlider(get_next_control_slot(), std::to_string(min_rows).c_str(), std::to_string(max_rows).c_str(), &next_cell_rows, min_rows, max_rows);
-    next_cell_cols = round(next_cell_cols);
-    next_cell_rows = round(next_cell_rows);
-
-    if (GuiButton(get_next_control_slot(), "Apply\n(empties buffer)")) {
-	active_automat->init((Automata_Type)automat_type_selection, next_cell_cols, next_cell_rows, 
-		      empty_cell, fill_values, fill_values_size);
-	std::cout << "Apply: after reiniting the automat\n";
-
-	UnloadTexture(txt);
-	Image h = GenImageColor(next_cell_cols, next_cell_rows, *(Color*)&dead_col);
-	txt = LoadTextureFromImage(h);
-	UnloadImage(h);
-
-	if (automat_type_selection == TWO_DIM) {
-	    active_automat->set_rules_gol();
-	    std::cout << "Apply: after setting rules to game of life\n";
-	}
-	else {
-	    active_automat->set_ruleset_dec(next_one_dim_ruleset);
-	    std::cout << "Apply: after setting rules to next_one_dim_ruleset\n";
-	}
-	if (next_input) {
-	    active_automat->set_cells(next_input);
-	    std::cout << "Apply: after setting input\n";
-	}
-	std::cout << "Apply: after apply\n";
-	assert(active_automat->is_initialized());
-	assert(active_automat->rules && "rules not set on the new automat");
-    }
-
-    if (active_automat->is_initialized()) {
-	if (GuiButton(get_next_control_slot(), "Start with current buffer")) {
-	    state = VIEW_CURRENT;
-	}
-    }
-}
-
 void control_window_selection() {
     Layout top_row_layout = Layout(get_next_control_slot(), HORIZONTAL, STATE_MAX, 5.f);
-    if (GuiButton(top_row_layout.get_slot(0, true), "Edit current automat")) {
-	if (state != VIEW_CURRENT) {
-	    switch_back_to_current();
-	    active_automat->print();
-	}
+    if (IsKeyReleased(KEY_ONE)) {
+	active_automat = &elementary_automat;
     }
-    if (GuiButton(top_row_layout.get_slot(1, true), "Prepare next automat")) {
-	if (state != PREPARE_NEXT) {
-	    switch_to_next();
-	    active_automat->print();
-	}
+    if (IsKeyReleased(KEY_TWO)) {
+	active_automat = &gol_automat;
+    }
+    if (IsKeyReleased(KEY_THREE)) {
+	active_automat = &sand_automat;
     }
     //top_row_layout.draw();
 }
@@ -305,11 +261,6 @@ void controls() {
     if (state == VIEW_CURRENT) {
 	control_current_automat();
     }
-    else {
-	control_next_automat();
-    }
-
-
     if (GuiButton(get_next_control_slot(), "randomize buffer")) {
 	active_automat->randomize_cells();
     }
@@ -349,15 +300,17 @@ int main() {
     txt = LoadTextureFromImage(h);
     UnloadImage(h);
     
-    active_automat = new Cell_Automat<Cell>
-	(TWO_DIM, cell_cols, cell_rows, empty_cell, fill_values, fill_values_size);
-    active_automat->clear_cells();
-    active_automat->set_rules2D(sand_rules_func);
-    next_automat = new Cell_Automat<Cell>(TWO_DIM, cell_cols, cell_rows, empty_cell, fill_values, 1);
+    gol_automat.init(TWO_DIM, cell_cols, cell_rows, {EMPTY_CELL, 0}, fill_values, 1);
+    gol_automat.set_rules_gol();
+    std::cout << "after gol init\n";
+    elementary_automat.init(ONE_DIM, cell_cols, cell_rows, {EMPTY_CELL, 0}, fill_values, 1);
+    elementary_automat.set_ruleset_bin("00011110");
+    sand_automat.init(TWO_DIM, cell_cols, cell_rows, 
+		      {EMPTY_CELL, false}, fill_values, fill_values_size);
+    sand_automat.set_rules2D(sand_rules_func);
+    active_automat = &gol_automat;
 
-    UpdateTexture(txt, active_automat->cells);
-
-    std::cout << "alive color = " << alive_col << "\ndead color = " << dead_col << "\n";
+    update_texture();
     control_layout.set_spacing(min_dim / 50.f);
 
     while (!WindowShouldClose()) {
