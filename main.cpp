@@ -1,6 +1,8 @@
 /*
-* TODO:	Fullscreen the field
-* TODO:	minimal controls on top? Only button controls?
+* TODO: HIDE Controls when the when the longer side is only 1.2 (find better ratio through testing)
+* TODO: Colorpicker
+* TODO: Line drawing
+* TODO: Line thiccness
 */
 
 #include "raygui.h"
@@ -13,6 +15,7 @@
 #include <cassert>
 #include <string>
 #include "gui.h"
+
 
 #define COLOR_FROM_U32(c) *(Color*)&c
 
