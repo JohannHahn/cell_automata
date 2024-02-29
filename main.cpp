@@ -20,9 +20,10 @@ enum defined_automata {
     ELEM, GOL, PARTICLE 
 };
 
-enum state {
-    VIEW_CURRENT, PREPARE_NEXT, STATE_MAX
+enum control_state {
+    HIDE, SHOW, CONTROL_STATE_MAX
 };
+control_state control_state = HIDE;
 
 enum cell_type {
     EMPTY_CELL, SAND_CELL, ELEM_CELL, GOL_CELL, CELL_TYPE_MAX
@@ -49,7 +50,6 @@ const size_t fill_values_size = CELL_TYPE_MAX - 1;
 Cell fill_values[fill_values_size] = {{SAND_CELL, true}};
 Cell empty_cell = {EMPTY_CELL, false};
 
-state state = VIEW_CURRENT;
 bool mouse_draw = true;
 bool debugging = false;
 
@@ -61,16 +61,17 @@ KeyboardKey next_frame_key = KEY_RIGHT;
 
 int cell_cols = 100;
 int cell_rows = 100;
-int max_cols = 1000;
-int max_rows = 1000;
-int min_cols = 10;
-int min_rows = 10;
 
-float window_width = 1200;
-float window_height = 900;
+const int max_cols = 1000;
+const int max_rows = 1000;
+const int min_cols = 10;
+const int min_rows = 10;
+
+float window_width = 1000;
+float window_height = 1000;
 
 float min_dim = std::min(window_width, window_height);
-Rectangle view_area = {0, 0, min_dim, min_dim};
+Rectangle view_area = {0, 0, window_width*0.9f, window_height};
 float cell_width = view_area.width / (float)cell_cols;
 float cell_height = view_area.height / (float)cell_rows;
 Rectangle control_area = {view_area.width, 0, window_width - view_area.width, window_height};
@@ -157,8 +158,10 @@ void resize() {
     window_width = GetScreenWidth();
     window_height = GetScreenHeight();
     min_dim = std::min(window_width, window_height);
-    view_area = {0, 0, min_dim, min_dim};
-    bool vertical = min_dim == window_width;
+    if (control_state == HIDE) view_area = {0, 0, window_width*0.9f, window_height};
+    else if (control_state == SHOW) view_area = {0, 0, min_dim, min_dim};
+    bool vertical = min_dim == window_width && !(window_width == window_height);
+    std::cout << "vertical = " << vertical << "\n";
     control_area = {.x = vertical ? 0 : view_area.width, 
 		    .y = vertical ? view_area.height : 0, 
 		    .width = vertical ? window_width : window_width - view_area.width, 
@@ -176,12 +179,6 @@ Rectangle get_next_control_slot(bool spaced = true) {
 }
 
 void control_current_automat() {
-    if (autoplay || IsKeyReleased(next_frame_key)) {
-	if (seconds_passed >= 1.f / target_fps) { 
-	    seconds_passed = 0.f;
-	    active_automat->apply_rules(); 
-	}
-    }
     // info about current layout
     std::string table_body = active_automat->type == ONE_DIM ? "1D elementary" : "2D Game of life"; table_body += '\0';
     table_body += std::to_string(active_automat->width); table_body += '\0';
@@ -220,57 +217,45 @@ void control_current_automat() {
 	}
     }
     GuiSlider(get_next_control_slot(), "0", std::to_string(max_fps).c_str(), &target_fps, 0.f, max_fps);
-
-    bool autoplay_prev = autoplay;
-    GuiToggle(get_next_control_slot(), "Play", &autoplay);
-    if (IsKeyReleased(autoplay_key)) {
-	autoplay = !autoplay;
-    }
-    if (autoplay_prev != autoplay) {
-	// one dimensional automat reached max height
-	if (active_automat->type == ONE_DIM && active_automat->generation == active_automat->height - 1) {
-	    active_automat->generation = 0;
-	}
-    }
+    GuiToggle(get_next_control_slot(), autoplay ? "Stop" : "Play", &autoplay);
 
     if (GuiButton(get_next_control_slot(), "Restart")) {
 	active_automat->generation = 0;
 	memcpy(active_automat->cells, active_automat->initial_cells, active_automat->size);
-	//autoplay = false;
     }
 }
 
-void control_window_selection() {
-    Layout top_row_layout = Layout(get_next_control_slot(), HORIZONTAL, STATE_MAX, 5.f);
+void controls() {
+    control_index = 0;
+    if (autoplay || IsKeyReleased(next_frame_key)) {
+	if (seconds_passed >= 1.f / target_fps) { 
+	    seconds_passed = 0.f;
+	    active_automat->apply_rules(); 
+	}
+    }
+
+    if (IsKeyReleased(autoplay_key)) {
+	autoplay = !autoplay;
+    }
     if (IsKeyReleased(KEY_ONE)) {
 	active_automat = &elementary_automat;
+	autoplay = false;
     }
     if (IsKeyReleased(KEY_TWO)) {
 	active_automat = &gol_automat;
+	autoplay = false;
     }
     if (IsKeyReleased(KEY_THREE)) {
 	active_automat = &sand_automat;
+	autoplay = false;
     }
-    //top_row_layout.draw();
-}
- 
-void controls() {
-    control_index = 0;
-    control_window_selection();
-
-    if (state == VIEW_CURRENT) {
-	control_current_automat();
-    }
-    if (GuiButton(get_next_control_slot(), "randomize buffer")) {
+    if (IsKeyReleased(KEY_R)) {
 	active_automat->randomize_cells();
     }
-    if (GuiButton(get_next_control_slot(), "erase buffer")) {
+    if (IsKeyReleased(KEY_DELETE)) {
 	active_automat->clear_cells();
     }
 
-    Rectangle mouse_checkbox_rec = get_next_control_slot();
-    mouse_checkbox_rec.width /= 5.f;
-    GuiCheckBox(mouse_checkbox_rec, "Mouse drawing", &mouse_draw);
     if (mouse_draw && active_automat->is_initialized()) {
 	Vector2 mouse_pos = GetMousePosition();
 	if (CheckCollisionPointRec(mouse_pos, view_area)) {
@@ -284,6 +269,27 @@ void controls() {
 	    DrawRectangleLinesEx(brush_view_rec, 2.f, WHITE);
 	}
     }
+    // ui elements
+    if (control_state == HIDE) {
+	DrawRectangleRec(control_area, GRAY);
+	if (IsMouseButtonReleased(MOUSE_BUTTON_LEFT) && CheckCollisionPointRec(GetMousePosition(), control_area)) {
+	    std::cout << "Hi\n";
+	    control_state = SHOW;
+	    resize();
+	}
+	return;
+    }
+    control_current_automat();
+    if (GuiButton(get_next_control_slot(), "randomize buffer")) {
+	active_automat->randomize_cells();
+    }
+    if (GuiButton(get_next_control_slot(), "erase buffer")) {
+	active_automat->clear_cells();
+    }
+
+    Rectangle mouse_checkbox_rec = get_next_control_slot();
+    mouse_checkbox_rec.width /= 5.f;
+    GuiCheckBox(mouse_checkbox_rec, "Mouse drawing", &mouse_draw);
 }
 
 void draw_view_area() {
